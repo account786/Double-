@@ -3,77 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Duplicate Remover</title>
+    <title>Excel Cleaner Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f7f6; margin: 0; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 400px; }
-        h2 { color: #333; margin-bottom: 20px; }
-        input[type="file"] { margin: 20px 0; border: 1px dashed #bbb; padding: 20px; width: 100%; box-sizing: border-box; cursor: pointer; }
-        button { background-color: #27ae60; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; transition: 0.3s; }
-        button:hover { background-color: #219150; }
-        #status { margin-top: 15px; color: #555; font-weight: bold; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); width: 90%; max-width: 450px; text-align: center; }
+        h2 { color: #1a73e8; margin-bottom: 10px; }
+        input[type="file"] { margin: 20px 0; width: 100%; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+        .btn { background-color: #1a73e8; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.3s; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .download-btn { background-color: #28a745; display: none; text-decoration: none; color: white; padding: 12px 25px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; box-sizing: border-box; display: inline-block; margin-top: 10px; border: none; }
+        #status { margin-top: 15px; font-size: 14px; color: #555; line-height: 1.5; }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="card">
     <h2>Excel Duplicate Remover</h2>
-    <p>আপনার এক্সেল ফাইলটি সিলেক্ট করুন</p>
-    <input type="file" id="upload" accept=".xlsx, .xls">
-    <br>
-    <button onclick="processExcel()">ডুপ্লিকেট রিমুভ ও ডাউনলোড করুন</button>
+    <p style="color: #666; font-size: 14px;">ফাইল আপলোড করে ডুপ্লিকেট রিমুভ করুন</p>
+    
+    <input type="file" id="fileInput" accept=".xlsx, .xls">
+    
+    <button id="processBtn" class="btn" onclick="processExcel()">১. ডুপ্লিকেট চেক করুন</button>
+    
+    <button id="downloadBtn" class="download-btn" style="display: none;" onclick="downloadCleanedFile()">২. ফাইলটি ডাউনলোড করুন</button>
+    
     <div id="status"></div>
 </div>
 
 <script>
-    function processExcel() {
-        const fileInput = document.getElementById('upload');
-        const status = document.getElementById('status');
+    let cleanedWorkbook = null;
 
-        if (fileInput.files.length === 0) {
-            alert("অনুগ্রহ করে একটি এক্সেল ফাইল সিলেক্ট করুন!");
+    function processExcel() {
+        const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('status');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const processBtn = document.getElementById('processBtn');
+
+        if (!fileInput.files[0]) {
+            status.innerHTML = "<span style='color:red;'>অনুগ্রহ করে একটি ফাইল সিলেক্ট করুন!</span>";
             return;
         }
 
-        const file = fileInput.files[0];
         const reader = new FileReader();
-
-        status.innerText = "প্রসেসিং হচ্ছে...";
+        status.innerText = "প্রসেসিং হচ্ছে, দয়া করে অপেক্ষা করুন...";
+        processBtn.disabled = true;
 
         reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-            // প্রথম শিটটি নেওয়া হচ্ছে
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
+                if (jsonData.length === 0) {
+                    status.innerText = "ফাইলটি খালি!";
+                    processBtn.disabled = false;
+                    return;
+                }
 
-            // ডাটাকে JSON ফরম্যাটে কনভার্ট করা
-            let jsonData = XLSX.utils.sheet_to_json(worksheet);
+                // ডুপ্লিকেট রিমুভ করার লজিক
+                const uniqueData = Array.from(new Set(jsonData.map(JSON.stringify))).map(JSON.parse);
+                const removedCount = jsonData.length - uniqueData.length;
 
-            if (jsonData.length === 0) {
-                status.innerText = "ফাইলটি খালি!";
-                return;
+                // নতুন ডাটা দিয়ে ওয়ার্কবুক তৈরি
+                const newWorksheet = XLSX.utils.json_to_sheet(uniqueData);
+                cleanedWorkbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(cleanedWorkbook, newWorksheet, "CleanedData");
+
+                // স্ট্যাটাস আপডেট এবং ডাউনলোড বাটন দেখানো
+                status.innerHTML = `<span style='color:green;'>কাজ শেষ! <br> মোট <b>${removedCount}</b>টি ডুপ্লিকেট রিমুভ করা হয়েছে।</span>`;
+                downloadBtn.style.display = "block";
+                processBtn.style.display = "none";
+
+            } catch (error) {
+                status.innerHTML = "<span style='color:red;'>এরর: ফাইলটি পড়া যাচ্ছে না।</span>";
+                processBtn.disabled = false;
             }
-
-            // ডুপ্লিকেট রিমুভ করার লজিক (সম্পূর্ণ রো চেক করবে)
-            const uniqueData = Array.from(new Set(jsonData.map(JSON.stringify))).map(JSON.parse);
-
-            const removedCount = jsonData.length - uniqueData.length;
-
-            // নতুন ওয়ার্কবুক তৈরি
-            const newWorksheet = XLSX.utils.json_to_sheet(uniqueData);
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "CleanedData");
-
-            // ফাইল ডাউনলোড
-            XLSX.writeFile(newWorkbook, "Cleaned_File.xlsx");
-
-            status.innerText = `সফল হয়েছে! ${removedCount}টি ডুপ্লিকেট রিমুভ করা হয়েছে।`;
         };
 
-        reader.readAsArrayBuffer(file);
+        reader.readAsArrayBuffer(fileInput.files[0]);
+    }
+
+    function downloadCleanedFile() {
+        if (cleanedWorkbook) {
+            // ফাইল সেভ করা
+            XLSX.writeFile(cleanedWorkbook, "Cleaned_Excel_File.xlsx");
+        } else {
+            alert("ডাউনলোড করার মতো কোনো ডাটা নেই!");
+        }
     }
 </script>
 
