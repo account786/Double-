@@ -1,115 +1,79 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>এক্সেল ডুপ্লিকেট রিমুভার</title>
+    <title>Excel Cleaner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 400px;
-            width: 100%;
-        }
-        h2 { color: #333; margin-bottom: 20px; }
-        input[type="file"] {
-            margin: 20px 0;
-            padding: 10px;
-            border: 1px dashed #ccc;
-            width: 100%;
-            cursor: pointer;
-        }
-        button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        button:hover { background-color: #218838; }
-        #status { margin-top: 15px; color: #555; font-size: 14px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #eef2f3; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        h3 { color: #2c3e50; }
+        input[type="file"] { margin: 20px 0; font-size: 14px; width: 100%; }
+        .btn { background-color: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; transition: 0.3s; }
+        .btn:hover { background-color: #2980b9; }
+        #msg { margin-top: 15px; font-size: 14px; color: #e67e22; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>এক্সেল ডুপ্লিকেট চেকার</h2>
-    <p>আপনার এক্সেল ফাইলটি আপলোড করুন</p>
-    <input type="file" id="excelFile" accept=".xlsx, .xls" />
-    <br>
-    <button onclick="processExcel()">ডুপ্লিকেট রিমুভ করুন</button>
-    <p id="status"></p>
+<div class="card">
+    <h3>Excel Duplicate Remover</h3>
+    <p style="font-size: 13px; color: #7f8c8d;">এক্সেল ফাইল থেকে ডুপ্লিকেট ডাটা রিমুভ করুন</p>
+    
+    <input type="file" id="fileInput" accept=".xlsx, .xls">
+    <button class="btn" onclick="processFile()">ফাইল ক্লিন করুন</button>
+    
+    <div id="msg"></div>
 </div>
 
 <script>
-    function processExcel() {
-        const fileInput = document.getElementById('excelFile');
-        const status = document.getElementById('status');
+    function processFile() {
+        const input = document.getElementById('fileInput');
+        const msg = document.getElementById('msg');
 
-        if (fileInput.files.length === 0) {
-            alert("অনুগ্রহ করে একটি ফাইল সিলেক্ট করুন!");
+        if (!input.files[0]) {
+            msg.innerText = "দয়া করে আগে একটি ফাইল সিলেক্ট করুন।";
             return;
         }
 
-        const file = fileInput.files[0];
+        msg.innerText = "প্রসেসিং চলছে...";
+
         const reader = new FileReader();
-
-        status.innerText = "প্রসেসিং হচ্ছে...";
-
         reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
 
-            // প্রথম শীটটি নিচ্ছি
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
+                if (json.length === 0) {
+                    msg.innerText = "ফাইলটি খালি!";
+                    return;
+                }
 
-            // ডাটাকে JSON এ কনভার্ট করছি
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                // ডুপ্লিকেট রিমুভ করার উন্নত লজিক
+                const unique = Array.from(new Set(json.map(JSON.stringify))).map(JSON.parse);
+                const removed = json.length - unique.length;
 
-            if (jsonData.length === 0) {
-                status.innerText = "ফাইলে কোন ডাটা পাওয়া যায়নি!";
-                return;
+                const newSheet = XLSX.utils.json_to_sheet(unique);
+                const newWorkbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Cleaned");
+
+                // মোবাইল ব্রাউজারের জন্য সেভ করার পদ্ধতি
+                XLSX.writeFile(newWorkbook, "Cleaned_Data.xlsx");
+
+                msg.style.color = "#27ae60";
+                msg.innerText = `সফল! ${removed}টি ডুপ্লিকেট বাদ দেওয়া হয়েছে।`;
+            } catch (err) {
+                msg.style.color = "#c0392b";
+                msg.innerText = "এরর: ফাইলটি প্রসেস করা যাচ্ছে না।";
+                console.error(err);
             }
-
-            // ডুপ্লিকেট রিমুভ করার লজিক
-            // JSON অবজেক্টগুলোকে স্ট্রিং হিসেবে তুলনা করে ইউনিক ডাটা বের করা হচ্ছে
-            const uniqueData = jsonData.filter((value, index, self) =>
-                index === self.findIndex((t) => (
-                    JSON.stringify(t) === JSON.stringify(value)
-                ))
-            );
-
-            const duplicateCount = jsonData.length - uniqueData.length;
-
-            // নতুন এক্সেল ফাইল তৈরি
-            const newSheet = XLSX.utils.json_to_sheet(uniqueData);
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, newSheet, "CleanedData");
-
-            // ডাউনলোড করানো
-            XLSX.writeFile(newWorkbook, "Cleaned_File.xlsx");
-
-            status.innerText = `সফলভাবে সম্পন্ন হয়েছে! মোট ${duplicateCount}টি ডুপ্লিকেট রিমুভ করা হয়েছে।`;
         };
 
-        reader.readAsArrayBuffer(file);
+        reader.readAsArrayBuffer(input.files[0]);
     }
 </script>
 
