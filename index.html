@@ -3,36 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Cleaner Pro</title>
+    <title>Excel Cleaner Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); width: 90%; max-width: 450px; text-align: center; }
-        h2 { color: #1a73e8; margin-bottom: 10px; }
-        input[type="file"] { margin: 20px 0; width: 100%; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-        .btn { background-color: #1a73e8; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.3s; }
-        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
-        .download-btn { background-color: #28a745; display: none; text-decoration: none; color: white; padding: 12px 25px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; box-sizing: border-box; display: inline-block; margin-top: 10px; border: none; }
-        #status { margin-top: 15px; font-size: 14px; color: #555; line-height: 1.5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--tg-theme-bg-color, #ffffff); color: var(--tg-theme-text-color, #000000); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: var(--tg-theme-secondary-bg-color, #f0f0f0); padding: 25px; border-radius: 15px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: var(--tg-theme-button-color, #2481cc); margin-bottom: 15px; }
+        input[type="file"] { margin: 20px 0; width: 100%; color: var(--tg-theme-text-color); }
+        .btn { background-color: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #ffffff); border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); opacity: 0.9; }
+        #downloadBtn { background-color: #31b545; margin-top: 10px; display: none; text-decoration: none; display: none; align-items: center; justify-content: center; }
+        #status { margin-top: 15px; font-size: 14px; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Excel Duplicate Remover</h2>
-    <p style="color: #666; font-size: 14px;">ফাইল আপলোড করে ডুপ্লিকেট রিমুভ করুন</p>
+    <h2>Excel Cleaner</h2>
+    <p>Duplicate রিমুভ করে অরিজিনাল ফাইল ডাউনলোড করুন</p>
     
     <input type="file" id="fileInput" accept=".xlsx, .xls">
     
-    <button id="processBtn" class="btn" onclick="processExcel()">১. ডুপ্লিকেট চেক করুন</button>
-    
-    <button id="downloadBtn" class="download-btn" style="display: none;" onclick="downloadCleanedFile()">২. ফাইলটি ডাউনলোড করুন</button>
+    <button id="processBtn" class="btn" onclick="processExcel()">ফাইল চেক করুন</button>
+    <a id="downloadBtn" class="btn">ফাইলটি সেভ করুন</a>
     
     <div id="status"></div>
 </div>
 
 <script>
-    let cleanedWorkbook = null;
+    // Telegram WebApp Initialize
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // অ্যাপটি বড় করে ওপেন হবে
 
     function processExcel() {
         const fileInput = document.getElementById('fileInput');
@@ -41,13 +43,12 @@
         const processBtn = document.getElementById('processBtn');
 
         if (!fileInput.files[0]) {
-            status.innerHTML = "<span style='color:red;'>অনুগ্রহ করে একটি ফাইল সিলেক্ট করুন!</span>";
+            tg.showAlert("অনুগ্রহ করে একটি এক্সেল ফাইল সিলেক্ট করুন!");
             return;
         }
 
         const reader = new FileReader();
-        status.innerText = "প্রসেসিং হচ্ছে, দয়া করে অপেক্ষা করুন...";
-        processBtn.disabled = true;
+        status.innerText = "প্রসেসিং চলছে...";
 
         reader.onload = function(e) {
             try {
@@ -59,40 +60,42 @@
 
                 if (jsonData.length === 0) {
                     status.innerText = "ফাইলটি খালি!";
-                    processBtn.disabled = false;
                     return;
                 }
 
-                // ডুপ্লিকেট রিমুভ করার লজিক
+                // ডুপ্লিকেট রিমুভ (একদম হুবহু রো গুলো বাদ যাবে)
                 const uniqueData = Array.from(new Set(jsonData.map(JSON.stringify))).map(JSON.parse);
                 const removedCount = jsonData.length - uniqueData.length;
 
-                // নতুন ডাটা দিয়ে ওয়ার্কবুক তৈরি
                 const newWorksheet = XLSX.utils.json_to_sheet(uniqueData);
-                cleanedWorkbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(cleanedWorkbook, newWorksheet, "CleanedData");
+                const newWorkbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Cleaned");
 
-                // স্ট্যাটাস আপডেট এবং ডাউনলোড বাটন দেখানো
-                status.innerHTML = `<span style='color:green;'>কাজ শেষ! <br> মোট <b>${removedCount}</b>টি ডুপ্লিকেট রিমুভ করা হয়েছে।</span>`;
-                downloadBtn.style.display = "block";
+                // এক্সেল ডাটাকে Base64 এ কনভার্ট করা (টেলিগ্রামের জন্য ভালো কাজ করে)
+                const excelBin = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'binary' });
+                const buffer = new ArrayBuffer(excelBin.length);
+                const view = new Uint8Array(buffer);
+                for (let i = 0; i < excelBin.length; i++) view[i] = excelBin.charCodeAt(i) & 0xFF;
+                
+                const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const url = URL.createObjectURL(blob);
+
+                // ডাউনলোড বাটন সেটআপ
+                downloadBtn.href = url;
+                downloadBtn.download = "Cleaned_Data.xlsx";
+                downloadBtn.style.display = "flex";
                 processBtn.style.display = "none";
 
-            } catch (error) {
-                status.innerHTML = "<span style='color:red;'>এরর: ফাইলটি পড়া যাচ্ছে না।</span>";
-                processBtn.disabled = false;
+                status.innerHTML = `<b style="color:#31b545;">সফল!</b> ${removedCount}টি ডুপ্লিকেট রিমুভ করা হয়েছে।`;
+                
+                tg.HapticFeedback.notificationOccurred('success');
+            } catch (err) {
+                status.innerText = "ভুল ফাইল ফরম্যাট!";
+                console.error(err);
             }
         };
 
         reader.readAsArrayBuffer(fileInput.files[0]);
-    }
-
-    function downloadCleanedFile() {
-        if (cleanedWorkbook) {
-            // ফাইল সেভ করা
-            XLSX.writeFile(cleanedWorkbook, "Cleaned_Excel_File.xlsx");
-        } else {
-            alert("ডাউনলোড করার মতো কোনো ডাটা নেই!");
-        }
     }
 </script>
 
